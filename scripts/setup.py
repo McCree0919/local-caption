@@ -28,7 +28,8 @@ def main():
     env = BASE / 'translation/.venv'
     python = env / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
     if not python.is_file():
-        venv.EnvBuilder(with_pip=True).create(env)
+        # Standalone macOS Python needs its original path to find libpython.
+        venv.EnvBuilder(with_pip=True, symlinks=os.name != 'nt').create(env)
     subprocess.run([str(python), '-m', 'pip', 'install', '-r', str(BASE / 'requirements.txt')], check=True)
     groups = {'core', 'hymt', 'nllb'} if args.backend == 'both' else {'core', args.backend}
     for item in platform_manifest():

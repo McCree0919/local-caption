@@ -2,7 +2,7 @@
 
 在 Windows 上把英语麦克风或系统声音转成英文字幕，并在本机翻译为简体中文。紧凑半透明置顶窗口、带时间戳的中英字幕、本地 TXT 保存、实时积压提示，支持 Hy-MT2 和 NLLB 对比。
 
-当前是可安装的源码试用版，不是免安装 EXE。Windows 10/11 x64、CPU 为当前验证目标；另有 [Apple Silicon macOS 实验移植说明](docs/macos.md)，尚未真机验证，且未实现 macOS 系统声音采集。Linux、Windows ARM 和整堂课连续运行尚未验证。
+当前是可安装的源码试用版，不是免安装 EXE。Windows 10/11 x64、CPU 为当前验证目标；另有 [Apple Silicon macOS 实验移植说明](docs/macos.md)，已完成单机安装与示例流程验证，真实麦克风仍待验证，且未实现 macOS 系统声音采集。Linux、Windows ARM 和整堂课连续运行尚未验证。
 
 ## 安装
 

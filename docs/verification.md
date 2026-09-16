@@ -8,7 +8,7 @@
 
 Windows：8 项切句/时间线/积压逻辑测试、2 项分发边界测试通过；真实 ASR worker 在 0/0.1/0.5 秒停止均正常退出，耗时 0.297/0.078/0.031 秒。实际 `start.cmd` 启动独立 venv 的 GUI，点击示例，走本地 WAV → 原生 ASR → Hy-MT2 worker → 两段中英字幕 → 自动保存；回读 TXT 两段完整且没有“未完成”标记。原型已知的 JFK 否定误译仍出现，集成成功不代表翻译准确。独立环境中 `test_stream_translation.py --unknown` 在 4.66 秒完成，验证 NLLB 异常保留英文后继续翻译下一句；该测试模拟 ASR 输入边界，不代表硬件采音验收。新仓库本轮没有重跑真实系统声音硬件测试，旧原型的两分钟数据仅作背景。
 
-macOS：从 GitHub b11005 / v0.1.0 下载 arm64 归档，SHA-256 与 release digest 一致，检查了真实归档布局和文件摘要。NeMo 包有 `nemo-speech/` 顶层，llama 包有 `llama-b11005/` 顶层，必须保留对应路径及动态库布局。已准备 POSIX 进程信号和 shell 启动入口，但没有 Mac 真机或 macOS CI 执行证据；系统声音后端未实现。不要将静态检查记录为 Mac 可用性验收。
+macOS 初始静态检查：从 GitHub b11005 / v0.1.0 下载 arm64 归档，SHA-256 与 release digest 一致，检查了真实归档布局和文件摘要。NeMo 包有 `nemo-speech/` 顶层，llama 包有 `llama-b11005/` 顶层，必须保留对应路径及动态库布局。随后已在一台 Apple M4 Mac 上完成联网安装、资源校验和真实 Tk 示例流程验证，详见 [macOS 记录](macos.md)。真实麦克风和长期使用仍待验收；系统声音后端未实现。
 
 ## 可复用经验
 
@@ -24,4 +24,4 @@ macOS：从 GitHub b11005 / v0.1.0 下载 arm64 归档，SHA-256 与 release dig
 
 2026-09-16 性能补充：对正在运行的原型 GUI / 麦克风 / Hy-MT2 进程树做约 121 秒只读观察，未停止会话；额外基准在采样前取消，其不完整结果不使用。每秒读取 RSS、私有提交、CPU 时间增量，并只解析 llama-server 新增 timing 行；GUI 临时观察器读取已有队列计数，不更改业务流程，约 125 秒后自行结束。对齐同一时间窗后有 20 次推理完成，统计与解释见 [性能记录](performance.md)。新工具 `scripts/observe_resources.py` 的真实 CLI 入口已完成该次观测；其中无 GUI 探针，后者仅为原型 CPython 3.14 临时诊断，不作为跨平台功能发布。资源统计要区分工作集与私有提交，并标注系统内存压力；不要把内存受压时的 RSS 当作最低配置。
 
-另一台 Windows 完整联网安装、连续 30–60 分钟播放、设备切换和断开；Apple Silicon 真机安装/权限/窗口/麦克风/退出；macOS 系统声音后端。首轮 overlapping 固定样本 A/B 见 [实验记录](overlap-experiment.md)：前文泄漏没有触发输出保护，默认仍关闭；需进一步验证源范围回写与有界重译方案。
+另一台 Windows 完整联网安装、连续 30–60 分钟播放、设备切换和断开；Apple Silicon 麦克风权限/采集/立即停止/退出、更多机器上的安装验证；macOS 系统声音后端。首轮 overlapping 固定样本 A/B 见 [实验记录](overlap-experiment.md)：前文泄漏没有触发输出保护，默认仍关闭；需进一步验证源范围回写与有界重译方案。

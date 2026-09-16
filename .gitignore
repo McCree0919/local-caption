@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .venv/
+.tools/
+.cache/
 .downloads/
 runtime/
 models/
