@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+.downloads/
+runtime/
+models/
+samples/
+translation/models/
+translation/hymt/
+translation/results/
+transcripts/
+diagnostics/
+preferences.json
+installed.json
+dist/
+*.lnk
