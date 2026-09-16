@@ -12,6 +12,7 @@ import threading
 import time
 import signal
 from platform_support import WINDOWS, PYTHON, process_options, kill_tree, open_folder
+from transcript_history import TranscriptHistory
 from translation_flow import matching_pairs, next_chunk, source_prefix, valid_result, words, Timeline, timestamp, defer_until, reconcile_pairs
 
 BASE = Path(__file__).resolve().parents[1]
@@ -40,7 +41,7 @@ def worker(mode):
     args = [str(ENGINE), 'transcribe']
     args += ['--live'] if mode == 'live' else [str(BASE / 'samples/jfk.wav'), '--stream']
     args += ['--model', str(MODEL), '--device', 'cpu']
-    child = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    child = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              encoding='utf-8', errors='replace', bufsize=1,
                              start_new_session=not WINDOWS)
     ready = threading.Event()
@@ -65,11 +66,19 @@ def worker(mode):
                 child.terminate()
 
     threading.Thread(target=stop_listener, daemon=True).start()
-    for line in child.stdout:
-        if line.startswith('[live] listening'):
-            ready.set()
-        print(json.dumps({'line': line.rstrip()}, ensure_ascii=True), flush=True)
+    def read_status():
+        for line in child.stderr:
+            if line.startswith('[live] listening'):
+                ready.set()
+            print(json.dumps({'line': line.rstrip()}, ensure_ascii=True), flush=True)
+    status_reader = threading.Thread(target=read_status, daemon=True)
+    status_reader.start()
+    # stdout is one final document; splitting it into lines loses earlier paragraphs.
+    summary = child.stdout.read()
     code = child.wait()
+    status_reader.join()
+    if summary.strip():
+        print(json.dumps({'transcript_summary': summary}, ensure_ascii=True), flush=True)
     print(json.dumps({'exit': 0 if cancelled.is_set() else code,
                       'cancelled': cancelled.is_set()}), flush=True)
 
@@ -99,6 +108,7 @@ def main(test_driver=None):
             self.stopping = False
             self.events = queue.Queue()
             self.text = ''
+            self.transcript_history = TranscriptHistory()
             self.session_file = None
             self.dirty = False
             self.closing = False
@@ -124,6 +134,8 @@ def main(test_driver=None):
             source = os.environ.get('ASR_AUDIO_SOURCE', preferences.get('audio_source', 'live'))
             self.audio_source = tk.StringVar(value=source if source in INPUTS else 'live')
             self.active_source = self.audio_source.get()
+            self.save_audio = tk.BooleanVar(value=bool(preferences.get('save_audio', False)) and WINDOWS)
+            self.audio_recording = {}
             self.audio_metrics = {}
             self.capture_device = ''
             self.metrics_file = None
@@ -168,7 +180,9 @@ def main(test_driver=None):
             self.settings = tk.Menu(self.root, tearoff=False)
             self.settings.add_checkbutton(label='始终置顶', variable=self.pinned,
                 command=lambda: self.root.attributes('-topmost', self.pinned.get()))
-            self.settings.add_checkbutton(label='自动保存', variable=self.autosave)
+            self.settings.add_checkbutton(label='自动保存字幕（不含录音）', variable=self.autosave)
+            self.settings.add_checkbutton(label='保存原始音频（下次开始生效）', variable=self.save_audio,
+                state='normal' if WINDOWS else 'disabled', command=self.save_preferences)
             self.settings.add_checkbutton(label='中文翻译', variable=self.chinese, command=self.toggle_translation)
             for key, label in INPUTS.items():
                 self.settings.add_radiobutton(label='输入：' + label, variable=self.audio_source,
@@ -258,7 +272,7 @@ def main(test_driver=None):
             deferred = sum(bool(pair.get('deferred')) for pair in self.translation_pairs)
             if deferred:
                 hint += f' · {deferred} 段待补译'
-            if self.active_source == 'system' and self.audio_metrics:
+            if self.audio_metrics:
                 pending = self.queue_metrics()
                 hint += (f"\n音频待识别 {self.audio_metrics.get('backlog_seconds', 0):.1f}s"
                          f" · 待译 {pending['pending_words']} 词 / 最早 {pending['oldest_pending_seconds']:.1f}s"
@@ -322,9 +336,12 @@ def main(test_driver=None):
                 messagebox.showerror('缺少文件', '未找到本地模型或识别程序，请检查 models 和 runtime 文件夹。', parent=self.root)
                 return
             self.text, self.errors = '', []
+            self.transcript_history = TranscriptHistory()
             if mode == 'live':
                 mode = self.audio_source.get()
             self.active_source = mode
+            self.audio_recording = {}
+            archive_audio = WINDOWS and self.save_audio.get() and mode in ('live', 'system')
             self.audio_metrics = {}
             self.capture_device = ''
             self.stopped_at = None
@@ -340,7 +357,7 @@ def main(test_driver=None):
             self.render_chinese()
             self.dirty = False
             self.session_file = SAVES / (dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f') + '.txt')
-            self.metrics_file = self.session_file.with_suffix('.metrics.jsonl') if mode == 'system' else None
+            self.metrics_file = self.session_file.with_suffix('.metrics.jsonl') if mode == 'system' or archive_audio else None
             self.save_status.set('新会话 · 有识别文字后自动保存中英文本')
             self.render()
             self.status.set('正在转写示例音频…' if mode == 'demo' else '正在加载 · ' + INPUTS[mode])
@@ -350,8 +367,11 @@ def main(test_driver=None):
             python = Path(sys.executable).with_name('python.exe') if WINDOWS else Path(sys.executable)
             command = [str(python), str(Path(__file__).resolve()), '--worker', mode]
             options = process_options(console=True)
-            if mode == 'system':
-                command = [str(PYTHON), str(BASE / 'app/loopback_worker.py')]
+            if mode == 'system' or archive_audio:
+                command = [str(PYTHON), str(BASE / 'app/loopback_worker.py'), '--source',
+                           'system' if mode == 'system' else 'microphone']
+                if archive_audio:
+                    command += ['--record-audio', str(self.session_file.with_suffix('.wav'))]
                 options = process_options()
             try:
                 self.proc = subprocess.Popen(command,
@@ -406,6 +426,10 @@ def main(test_driver=None):
                     self.audio_metrics = event['audio_metrics']
                     self.record_metrics('audio')
                     self.refresh_hints()
+                elif 'audio_recording' in event:
+                    self.audio_recording = event['audio_recording']
+                    self.dirty = True
+                    self.refresh_hints()
                 elif 'capture_device' in event:
                     self.capture_device = event['capture_device']
                     if not self.stopping:
@@ -447,11 +471,16 @@ def main(test_driver=None):
                 elif 'exit' in event:
                     if event['exit']:
                         self.errors.append('识别程序退出码：' + str(event['exit']))
-                elif 'line' in event:
-                    line = event['line']
-                    match = re.match(r'\[live (?:partial|final)[^\]]*\]\s*(.*)', line)
-                    if match or (line and not line.startswith('[') and not line.startswith('nemo-speech')):
-                        updated = match.group(1) if match else line
+                elif 'line' in event or 'transcript_summary' in event:
+                    line = event.get('line', '')
+                    match = re.match(r'\[live (partial|final)[^\]]*\]\s*(.*)', line, re.DOTALL)
+                    if match or 'transcript_summary' in event:
+                        updated = (self.transcript_history.observe(match.group(2), match.group(1) == 'final')
+                                   if match else self.transcript_history.summary(event['transcript_summary']))
+                        if self.transcript_history.summary_rejected:
+                            warning = '结束整稿与已保存历史不一致；保留已接收字幕，请核对记录。'
+                            if warning not in self.errors:
+                                self.errors.append(warning)
                         if updated != self.text:
                             audio_time = re.search(r'@\s*([\d.]+)s', line)
                             elapsed = float(audio_time.group(1)) if audio_time else time.monotonic() - self.recording_started
@@ -571,6 +600,9 @@ def main(test_driver=None):
             body += '\n\n输入：' + INPUTS.get(self.active_source, '示例音频')
             if self.capture_device:
                 body += ' · ' + self.capture_device
+            if self.audio_recording:
+                body += '\n原始音频：' + self.audio_recording['path']
+                body += '（已保存）' if self.audio_recording.get('complete') else '（写入中或未正常收尾）'
             if self.errors:
                 body += '\n[识别未完成：' + '；'.join(self.errors[-2:]) + ']'
             return body + '\n'
@@ -602,7 +634,7 @@ def main(test_driver=None):
             try:
                 temporary = PREFERENCES.with_suffix('.tmp')
                 temporary.write_text(json.dumps({'translation_backend': self.active_backend,
-                    'audio_source': self.audio_source.get()}), encoding='utf-8')
+                    'audio_source': self.audio_source.get(), 'save_audio': self.save_audio.get()}), encoding='utf-8')
                 temporary.replace(PREFERENCES)
             except OSError:
                 self.status.set('设置已应用，但未能保存默认设置')

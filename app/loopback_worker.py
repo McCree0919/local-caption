@@ -1,5 +1,6 @@
 """Capture default Windows output using WASAPI; stream locally into NeMo ASR."""
 import json
+import argparse
 import ctypes
 from ctypes import wintypes
 import msvcrt
@@ -14,6 +15,10 @@ BASE = Path(__file__).resolve().parents[1]
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--source', choices=['system', 'microphone'], default='system')
+    parser.add_argument('--record-audio', type=Path, help='Save unenhanced device audio as PCM16 WAV')
+    args = parser.parse_args()
     sys.stdout.reconfigure(encoding='utf-8')
     lock = threading.Lock()
     def emit(event):
@@ -45,16 +50,17 @@ def main():
     recognizer = None
     capture = None
     audio = None
+    archive = None
     code = 0
     try:
         import numpy as np
         import pyaudiowpatch as pa
         from asr_stream import StreamRecognizer
         audio = pa.PyAudio()
-        device = audio.get_default_wasapi_loopback()
+        device = audio.get_default_wasapi_loopback() if args.source == 'system' else audio.get_default_input_device_info()
         rate, channels = int(device['defaultSampleRate']), int(device['maxInputChannels'])
         if not channels:
-            raise RuntimeError('默认输出设备不支持系统声音采集。')
+            raise RuntimeError('默认音频设备不支持输入采集。')
         recognizer = StreamRecognizer()
         blocks = queue.Queue(maxsize=120)  # 12 seconds, then stop explicitly; never silently drop.
         fault = []
@@ -70,6 +76,13 @@ def main():
                 fault.append(f'系统音频采集发生溢出或设备错误（{status}），请停止其他高负载任务后重试。')
                 stop.set()
                 return (None, pa.paComplete)
+            if archive:
+                try:
+                    archive.submit(data)
+                except Exception as exc:
+                    fault.append(str(exc))
+                    stop.set()
+                    return (None, pa.paComplete)
             samples = np.frombuffer(data, dtype=np.float32).reshape(-1, channels).mean(axis=1).astype(np.float32)
             peak = float(np.max(np.abs(samples))) if len(samples) else 0.0
             try:
@@ -86,8 +99,12 @@ def main():
         ready.set()
         if stop.is_set():
             return
+        if args.record_audio:
+            from audio_archive import AudioArchive
+            archive = AudioArchive(args.record_audio, rate, channels)
+            emit({'audio_recording': {'path': str(archive.partial_path), 'complete': False}})
         capture.start_stream()
-        emit({'line': '[live] listening system audio'})
+        emit({'line': '[live] listening ' + args.source})
         emit({'capture_device': device['name']})
         last_metrics = 0
         previous = ''
@@ -126,13 +143,21 @@ def main():
             raise RuntimeError(fault[0])
     except Exception as exc:
         code = 1
-        emit({'line': '[error] 系统声音：' + str(exc)})
+        emit({'line': '[error] 音频采集：' + str(exc)})
     finally:
         stop.set()
         if capture:
             capture.close()
         if audio:
             audio.terminate()
+        if archive:
+            try:
+                path = archive.close()
+                emit({'audio_recording': {'path': str(path), 'complete': True,
+                      'frames': archive.frames, 'rate': rate, 'channels': channels}})
+            except Exception as exc:
+                code = 1
+                emit({'line': '[error] ' + str(exc)})
         if recognizer:
             recognizer.close()
         emit({'exit': code, 'cancelled': code == 0})
