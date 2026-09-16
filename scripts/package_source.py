@@ -4,7 +4,7 @@ import zipfile
 
 BASE = Path(__file__).resolve().parents[1]
 ROOT_FILES = ['README.md', 'CONTRIBUTING.md', 'THIRD_PARTY.md', 'LICENSE', '.gitignore', '.gitattributes', 'assets.json',
-              'requirements.txt', 'setup.cmd', 'start.cmd', 'doctor.cmd', 'setup.command', 'start.command']
+              'requirements.txt', 'requirements-benchmark.txt', 'setup.cmd', 'start.cmd', 'doctor.cmd', 'setup.command', 'start.command']
 
 
 def source_files():
@@ -12,6 +12,7 @@ def source_files():
     for folder in ('app', 'translation', 'tests', 'scripts'):
         paths.extend(sorted((BASE / folder).glob('*.py')))
     paths.extend(sorted((BASE / 'docs').glob('*.md')))
+    paths.append(BASE / 'docs/performance-data.json')
     paths.extend(sorted((BASE / '.github/workflows').glob('*.yml')))
     paths.extend(sorted((BASE / '.github/ISSUE_TEMPLATE').glob('*.md')))
     paths.extend(sorted((BASE / '.github').glob('*.md')))

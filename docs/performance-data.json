@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-16",
+  "hardware": {
+    "cpu": "Intel Core Ultra 5 125H",
+    "cores": 14,
+    "logical_processors": 18,
+    "ram_bytes": 16799621120,
+    "os": "Windows 11 Pro 10.0.26200"
+  },
+  "active_microphone_hymt": {
+    "resources_and_inference": {
+      "duration_seconds": 120.7741326999967,
+      "sample_interval_seconds": 1,
+      "sample_count": 118,
+      "cpu_percent_machine": 25.68643529116007,
+      "minimum_available_ram_gib": 0.13873291015625,
+      "resources": {
+        "asr": {
+          "rss_mib": {
+            "count": 118,
+            "mean": 647.6753177966102,
+            "median": 647.7734375,
+            "p95": 647.8515625,
+            "max": 647.8515625
+          },
+          "private_commit_mib": {
+            "count": 118,
+            "mean": 3713.140625,
+            "median": 3713.140625,
+            "p95": 3713.140625,
+            "max": 3713.140625
+          }
+        },
+        "hymt": {
+          "rss_mib": {
+            "count": 118,
+            "mean": 1101.28125,
+            "median": 1101.46875,
+            "p95": 1103.66015625,
+            "max": 1103.66015625
+          },
+          "private_commit_mib": {
+            "count": 118,
+            "mean": 1004.57421875,
+            "median": 1004.703125,
+            "p95": 1004.703125,
+            "max": 1004.703125
+          }
+        },
+        "gui_and_workers": {
+          "rss_mib": {
+            "count": 118,
+            "mean": 42.18428893008475,
+            "median": 42.275390625,
+            "p95": 42.828125,
+            "max": 42.87890625
+          },
+          "private_commit_mib": {
+            "count": 118,
+            "mean": 190.20567399364407,
+            "median": 190.30859375,
+            "p95": 190.4296875,
+            "max": 190.44921875
+          }
+        },
+        "total": {
+          "rss_mib": {
+            "count": 118,
+            "mean": 1791.140856726695,
+            "median": 1791.369140625,
+            "p95": 1793.39453125,
+            "max": 1793.41796875
+          },
+          "private_commit_mib": {
+            "count": 118,
+            "mean": 4907.920517743644,
+            "median": 4908.14453125,
+            "p95": 4908.26171875,
+            "max": 4908.29296875
+          }
+        }
+      },
+      "inference_seconds": {
+        "count": 20,
+        "mean": 1.713286,
+        "median": 1.73089,
+        "p95": 2.29995,
+        "max": 2.96607
+      },
+      "generation_tokens_per_second": {
+        "count": 20,
+        "mean": 13.841,
+        "median": 13.754999999999999,
+        "p95": 17.34,
+        "max": 17.46
+      }
+    },
+    "queue_state_samples": {
+      "pending_words": {
+        "mean": 18.89830508474576,
+        "p95": 29,
+        "max": 33,
+        "start": 11,
+        "end": 16
+      },
+      "oldest_pending_seconds": {
+        "mean": 10.943403673731058,
+        "p95": 14.870125699996152,
+        "max": 17.620331100005842,
+        "start": 8.225858999997854,
+        "end": 10.73426300000392
+      },
+      "deferred_chunks": {
+        "mean": 0,
+        "p95": 0,
+        "max": 0,
+        "start": 0,
+        "end": 0
+      },
+      "samples": 118,
+      "same_session": true,
+      "all_recording": true,
+      "all_hymt": true,
+      "translation_busy_fraction": 0.3474576271186441,
+      "pair_count_change": 20,
+      "errors_change": 0,
+      "warnings_change": 0
+    }
+  }
+}
